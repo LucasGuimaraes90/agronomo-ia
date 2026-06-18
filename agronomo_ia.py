@@ -415,7 +415,6 @@ def markdown_to_pdf(markdown_text: str, title: str = "Relatório — Agrônomo I
 # GERAÇÃO DE EXCEL
 # ══════════════════════════════════════════════════════════════════════════════
 def extract_tables_from_markdown(text: str):
-    """Extrai tabelas markdown e retorna lista de (header, rows)."""
     tables = []
     lines = text.split("\n")
     i = 0
@@ -442,9 +441,7 @@ def response_to_excel(markdown_text: str, title: str = "Agrônomo IA") -> bytes:
     verde = "1B5E20"
     verde_claro = "E8F5E9"
     verde_medio = "2E7D32"
-    amarelo = "FFF9C4"
 
-    # Cabeçalho
     ws.merge_cells("A1:G1")
     c = ws["A1"]
     c.value = f"🌱 GUARA AGRO — {title}"
@@ -460,12 +457,10 @@ def response_to_excel(markdown_text: str, title: str = "Agrônomo IA") -> bytes:
     c2.alignment = Alignment(horizontal="center")
 
     row = 4
-
     tables = extract_tables_from_markdown(markdown_text)
 
     if tables:
         for header, rows in tables:
-            # Header da tabela
             for col_idx, h in enumerate(header, 1):
                 cell = ws.cell(row=row, column=col_idx, value=h)
                 cell.font = Font(bold=True, color="FFFFFF", size=11)
@@ -479,7 +474,6 @@ def response_to_excel(markdown_text: str, title: str = "Agrônomo IA") -> bytes:
             ws.row_dimensions[row].height = 22
             row += 1
 
-            # Linhas
             for r_idx, data_row in enumerate(rows):
                 bg = verde_claro if r_idx % 2 == 0 else "FFFFFF"
                 for col_idx, val in enumerate(data_row, 1):
@@ -494,9 +488,7 @@ def response_to_excel(markdown_text: str, title: str = "Agrônomo IA") -> bytes:
                 ws.row_dimensions[row].height = 18
                 row += 1
             row += 1
-
     else:
-        # Sem tabela — dump do texto
         linhas = [l for l in markdown_text.split("\n") if l.strip()]
         ws.cell(row=row, column=1, value="Análise / Recomendação").font = Font(bold=True)
         row += 1
@@ -504,7 +496,6 @@ def response_to_excel(markdown_text: str, title: str = "Agrônomo IA") -> bytes:
             ws.cell(row=row, column=1, value=linha)
             row += 1
 
-    # Rodapé
     row += 1
     ws.merge_cells(f"A{row}:G{row}")
     c_footer = ws[f"A{row}"]
@@ -528,14 +519,12 @@ def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo 
     VERDE_ESC = RGBColor(0x1B, 0x5E, 0x20)
     CINZA = RGBColor(0x75, 0x75, 0x75)
 
-    # Margens
     for section in doc.sections:
         section.top_margin    = Cm(2)
         section.bottom_margin = Cm(2)
         section.left_margin   = Cm(2.5)
         section.right_margin  = Cm(2.5)
 
-    # Cabeçalho
     hdr = doc.add_paragraph()
     hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = hdr.add_run("🌱 GUARA AGRO — AGRÔNOMO IA")
@@ -552,13 +541,11 @@ def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo 
 
     doc.add_paragraph()
 
-    # Processa markdown linha a linha
     lines = markdown_text.split("\n")
     i = 0
     while i < len(lines):
         line = lines[i]
 
-        # Headings
         if line.startswith("### "):
             p = doc.add_heading(line[4:].strip(), level=3)
             p.runs[0].font.color.rgb = VERDE
@@ -568,11 +555,9 @@ def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo 
         elif line.startswith("# "):
             p = doc.add_heading(line[2:].strip(), level=1)
             p.runs[0].font.color.rgb = VERDE_ESC
-
-        # Tabela markdown
         elif line.strip().startswith("|") and i + 1 < len(lines) and "---" in lines[i + 1]:
             headers = [c.strip() for c in line.split("|") if c.strip()]
-            i += 2  # pula linha de separador
+            i += 2
             rows_data = []
             while i < len(lines) and lines[i].strip().startswith("|"):
                 row = [c.strip() for c in lines[i].split("|") if c.strip()]
@@ -584,7 +569,6 @@ def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo 
             table = doc.add_table(rows=1 + len(rows_data), cols=n_cols)
             table.style = "Table Grid"
 
-            # Header row
             for j, h in enumerate(headers):
                 cell = table.rows[0].cells[j]
                 cell.text = h
@@ -599,33 +583,26 @@ def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo 
                 shd.set(qn("w:val"), "clear")
                 tcPr.append(shd)
 
-            # Data rows
             for ri, row_data in enumerate(rows_data):
                 for ci, val in enumerate(row_data):
                     if ci < n_cols:
                         table.rows[ri + 1].cells[ci].text = val
 
             doc.add_paragraph()
-            continue  # já avançou i dentro do loop
+            continue
 
-        # Bullet
         elif line.startswith("- ") or line.startswith("* "):
             txt = line[2:].strip()
             txt = re.sub(r'\*\*(.+?)\*\*', r'\1', txt)
             p = doc.add_paragraph(txt, style="List Bullet")
-
-        # Linha vazia
         elif line.strip() == "":
             doc.add_paragraph()
-
-        # Parágrafo normal
         else:
             txt = line.strip()
             if not txt:
                 i += 1
                 continue
             p = doc.add_paragraph()
-            # bold inline
             parts = re.split(r'\*\*(.+?)\*\*', txt)
             for pi, part in enumerate(parts):
                 r = p.add_run(part)
@@ -633,7 +610,6 @@ def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo 
 
         i += 1
 
-    # Rodapé
     doc.add_paragraph()
     footer_p = doc.add_paragraph()
     footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -661,7 +637,7 @@ def markdown_to_pptx(markdown_text: str, title: str = "Análise Agrônomo IA") -
     BRANCO    = PRGBColor(0xFF, 0xFF, 0xFF)
     CINZA_ESC = PRGBColor(0x33, 0x33, 0x33)
 
-    blank_layout = prs.slide_layouts[6]  # totalmente em branco
+    blank_layout = prs.slide_layouts[6]
 
     def add_rect(slide, x, y, w, h, fill_color):
         shape = slide.shapes.add_shape(1, PInches(x), PInches(y), PInches(w), PInches(h))
@@ -685,7 +661,6 @@ def markdown_to_pptx(markdown_text: str, title: str = "Análise Agrônomo IA") -
             run.font.color.rgb = color
         return txb
 
-    # ── Slide 1: Capa ────────────────────────────────────────────────────────
     slide1 = prs.slides.add_slide(blank_layout)
     add_rect(slide1, 0, 0, 13.33, 7.5, VERDE_ESC)
     add_rect(slide1, 0, 5.8, 13.33, 1.7, PRGBColor(0x14, 0x46, 0x14))
@@ -694,9 +669,8 @@ def markdown_to_pptx(markdown_text: str, title: str = "Análise Agrônomo IA") -
     add_textbox(slide1, title, 0.5, 3.6, 12.33, 0.7, size=20, color=BRANCO, align=PP_ALIGN.CENTER)
     add_textbox(slide1, datetime.now().strftime("%d/%m/%Y"), 0.5, 6.1, 12.33, 0.6, size=14, color=PRGBColor(0xA5, 0xD6, 0xA7), align=PP_ALIGN.CENTER)
 
-    # ── Processa conteúdo em slides ──────────────────────────────────────────
     lines = markdown_text.split("\n")
-    slides_data = []  # lista de (titulo, [bullets])
+    slides_data = []
     current_title = title
     current_bullets = []
 
@@ -718,19 +692,13 @@ def markdown_to_pptx(markdown_text: str, title: str = "Análise Agrônomo IA") -
     if current_bullets:
         slides_data.append((current_title, current_bullets))
 
-    # ── Gera slides de conteúdo ──────────────────────────────────────────────
     for slide_title, bullets in slides_data:
         slide = prs.slides.add_slide(blank_layout)
-
-        # Barra superior verde
         add_rect(slide, 0, 0, 13.33, 1.2, VERDE)
         add_textbox(slide, slide_title, 0.3, 0.1, 12.73, 1.0, size=24, bold=True, color=BRANCO)
-
-        # Barra inferior
         add_rect(slide, 0, 7.1, 13.33, 0.4, VERDE_ESC)
         add_textbox(slide, "Guara Agro · Agrônomo IA  |  ⚠️ Não substitui laudo de Engenheiro Agrônomo (CREA)", 0.2, 7.1, 12.9, 0.38, size=9, color=BRANCO, italic=True)
 
-        # Conteúdo
         y = 1.35
         max_y = 6.9
         for kind, txt in bullets:
@@ -786,10 +754,9 @@ def call_claude(messages: list, image_b64: str = None, image_mime: str = None) -
     client = get_client()
 
     api_messages = []
-    for m in messages[:-1]:  # histórico
+    for m in messages[:-1]:
         api_messages.append({"role": m["role"], "content": m["content"]})
 
-    # Última mensagem (pode ter imagem)
     last = messages[-1]
     if image_b64 and last["role"] == "user":
         content = [
@@ -809,6 +776,50 @@ def call_claude(messages: list, image_b64: str = None, image_mime: str = None) -
             messages=api_messages,
         )
     return response.content[0].text
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GERAÇÃO DE CONTEÚDO LIMPO PARA DOCUMENTOS
+# ══════════════════════════════════════════════════════════════════════════════
+PROMPT_DOCUMENTO = """Você é um formatador de documentos agronômicos profissionais da Guara Agro.
+Com base na conversa técnica abaixo, gere um RELATÓRIO COMPLETO E ESTRUTURADO em markdown.
+
+REGRAS OBRIGATÓRIAS:
+- Comece DIRETAMENTE com o conteúdo — sem introduções, sem "Perfeito!", sem "Segue abaixo"
+- Use ## para seções principais e ### para subseções
+- Inclua TODAS as informações técnicas: valores de pH, saturação de bases, doses, etc.
+- Gere tabelas markdown para comparações numéricas (análise vs faixa ideal)
+- Seja preciso e completo — este é um documento técnico oficial
+
+ESTRUTURA OBRIGATÓRIA:
+## IDENTIFICAÇÃO DA LAVOURA
+## RESULTADOS DA ANÁLISE DE SOLO
+## NECESSIDADE DE CALAGEM
+## RECOMENDAÇÃO DE ADUBAÇÃO
+## CRONOGRAMA DE APLICAÇÃO
+## OBSERVAÇÕES TÉCNICAS
+## DISCLAIMER
+"""
+
+
+def generate_doc_content(messages: list) -> str:
+    """Gera conteúdo limpo para documentos via chamada separada à API."""
+    client = get_client()
+    hist = [m for m in messages if not m["content"].startswith("👋 Olá!")]
+    if not hist:
+        return ""
+    api_msgs = [{"role": m["role"], "content": m["content"]} for m in hist]
+    api_msgs.append({"role": "user", "content": "Gere o relatório técnico completo desta análise."})
+    try:
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            system=PROMPT_DOCUMENTO,
+            messages=api_msgs,
+        )
+        return resp.content[0].text
+    except Exception:
+        return "\n".join(m["content"] for m in hist if m["role"] == "assistant")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -880,7 +891,6 @@ def main():
     DISCLAIMER = "⚠️ **Esta recomendação não substitui o laudo de Engenheiro Agrônomo habilitado (CREA).**"
 
     def exibe_msg_assistente(content: str, show_disclaimer: bool = True):
-        # Remove disclaimer inline que o modelo possa ter incluído
         texto = re.sub(r'⚠️\s*\*?Esta recomendação não substitui.*?CREA\.\*?\n?', '', content, flags=re.IGNORECASE).strip()
         st.markdown(texto)
         if show_disclaimer:
@@ -894,39 +904,64 @@ def main():
         avatar = "🌱" if msg["role"] == "assistant" else "👤"
         with st.chat_message(msg["role"], avatar=avatar):
             if msg["role"] == "assistant":
-                # Mensagem de boas-vindas (índice 0) mostra disclaimer simples
                 exibe_msg_assistente(msg["content"], show_disclaimer=(i > 0))
             else:
                 st.markdown(msg["content"])
 
-    # Botões de download da última resposta do assistente
+    # ── Downloads (conteúdo gerado via API limpa) ──────────────────────────────
     assistant_msgs = [m for m in st.session_state.messages if m["role"] == "assistant"]
-    if len(assistant_msgs) > 1:  # exclui mensagem de boas-vindas
-        last_ai = assistant_msgs[-1]["content"]
+    if len(assistant_msgs) > 1:
         nome_data = datetime.now().strftime("%Y%m%d_%H%M")
+        st.markdown("**📄 Baixar relatório:**")
+        col_a, col_b, col_c, col_d = st.columns(4)
+        with col_a:
+            if st.button("📥 PDF", use_container_width=True, key="btn_pdf"):
+                with st.spinner("Gerando PDF..."):
+                    doc_md = generate_doc_content(st.session_state.messages)
+                    pdf_bytes = markdown_to_pdf(doc_md, "Recomendação Agronômica")
+                st.download_button("⬇️ Baixar PDF", pdf_bytes, f"agronomo_ia_{nome_data}.pdf", "application/pdf", key="dl_pdf")
+        with col_b:
+            if st.button("📊 Excel", use_container_width=True, key="btn_excel"):
+                with st.spinner("Gerando Excel..."):
+                    doc_md = generate_doc_content(st.session_state.messages)
+                    excel_bytes = response_to_excel(doc_md, "Recomendação Agronômica")
+                st.download_button("⬇️ Baixar Excel", excel_bytes, f"agronomo_ia_{nome_data}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_excel")
+        with col_c:
+            if st.button("📝 Word", use_container_width=True, key="btn_docx"):
+                with st.spinner("Gerando Word..."):
+                    doc_md = generate_doc_content(st.session_state.messages)
+                    docx_bytes = markdown_to_docx(doc_md, "Recomendação Agronômica")
+                st.download_button("⬇️ Baixar Word", docx_bytes, f"agronomo_ia_{nome_data}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="dl_docx")
+        with col_d:
+            if st.button("📑 PPT", use_container_width=True, key="btn_pptx"):
+                with st.spinner("Gerando PowerPoint..."):
+                    doc_md = generate_doc_content(st.session_state.messages)
+                    pptx_bytes = markdown_to_pptx(doc_md, "Recomendação Agronômica")
+                st.download_button("⬇️ Baixar PPT", pptx_bytes, f"agronomo_ia_{nome_data}.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", key="dl_pptx")
 
-        pdf_bytes   = markdown_to_pdf(last_ai, "Análise Agrônomo IA")
-        excel_bytes = response_to_excel(last_ai, "Análise Agrônomo IA")
-        docx_bytes  = markdown_to_docx(last_ai, "Análise Agrônomo IA")
-        pptx_bytes  = markdown_to_pptx(last_ai, "Análise Agrônomo IA")
-
-        link_pdf   = make_download_link(pdf_bytes,   f"agronomo_ia_{nome_data}.pdf",  "📥 PDF",   "")
-        link_excel = make_download_link(excel_bytes, f"agronomo_ia_{nome_data}.xlsx", "📊 Excel", "green")
-        link_docx  = make_download_link(docx_bytes,  f"agronomo_ia_{nome_data}.docx", "📝 Word",  "")
-        link_pptx  = make_download_link(pptx_bytes,  f"agronomo_ia_{nome_data}.pptx", "📑 PPT",   "green")
-
-        st.markdown(
-            f'<div style="margin-bottom:8px">{link_pdf} {link_excel} {link_docx} {link_pptx}</div>',
-            unsafe_allow_html=True
-        )
+    # ── Geração de imagem agronômica (Pollinations.ai — gratuito, sem API key) ──
+    if len(assistant_msgs) > 1:
+        with st.expander("🖼️ Gerar imagem agronômica (IA)"):
+            img_topic = st.text_input(
+                "Descreva o que visualizar:",
+                placeholder="Ex: lavoura de café no cerrado com adubação NPK",
+                key="img_prompt"
+            )
+            if st.button("🎨 Gerar imagem", key="btn_img") and img_topic:
+                import urllib.parse
+                fp = urllib.parse.quote(
+                    f"agronomic illustration, {img_topic}, professional technical agriculture, "
+                    f"Brazil cerrado, detailed, realistic, high quality"
+                )
+                img_url = f"https://image.pollinations.ai/prompt/{fp}?width=800&height=500&nologo=true"
+                st.image(img_url, caption=img_topic, use_container_width=True)
+                st.caption("🤖 Imagem gerada por IA (Pollinations) — meramente ilustrativa")
 
     # Input
     image_b64, image_mime = None, None
 
-    # Exemplo selecionado na sidebar
     prompt = st.session_state.pop("exemplo_selecionado", None)
 
-    # Chat input principal
     chat_input = st.chat_input(
         "Envie o laudo, faça uma pergunta ou peça um relatório...",
         key="chat_input"
@@ -935,7 +970,6 @@ def main():
         prompt = chat_input
 
     if prompt:
-        # Prepara imagem se houver
         if uploaded:
             img_bytes = uploaded.read()
             image_b64  = base64.b64encode(img_bytes).decode()
@@ -944,16 +978,13 @@ def main():
         else:
             display_content = prompt
 
-        # Mostra mensagem do usuário
         with st.chat_message("user", avatar="👤"):
             st.markdown(display_content)
 
         st.session_state.messages.append({"role": "user", "content": display_content})
 
-        # Chama Claude
         resposta = call_claude(st.session_state.messages, image_b64, image_mime)
 
-        # Mostra resposta
         with st.chat_message("assistant", avatar="🌱"):
             exibe_msg_assistente(resposta)
 
