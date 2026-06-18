@@ -30,31 +30,59 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── CSS tema verde / dark ──────────────────────────────────────────────────────
+# ── CSS tema verde claro / white ───────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-/* fundo geral */
-.stApp { background: #0b1a0b; color: #e8f5e9; }
+/* fundo geral — branco */
+.stApp { background: #ffffff; color: #1a2e1a; }
 
-/* sidebar */
-section[data-testid="stSidebar"] { background: #0d210d; }
+/* sidebar — verde muito suave */
+section[data-testid="stSidebar"] { background: #f1f8f1; border-right: 1px solid #c8e6c9; }
 
-/* chat bubbles */
-[data-testid="stChatMessage"] {
-    background: #122612;
+/* chat bubbles — usuário */
+[data-testid="stChatMessage"][data-testid*="user"] {
+    background: #e8f5e9;
     border-radius: 12px;
     margin: 6px 0;
-    border: 1px solid #1e401e;
+    border: 1px solid #c8e6c9;
 }
+
+/* chat bubbles — assistente */
+[data-testid="stChatMessage"] {
+    background: #f9fdf9;
+    border-radius: 12px;
+    margin: 6px 0;
+    border: 1px solid #e0f0e0;
+}
+
+/* texto dentro dos bubbles */
+[data-testid="stChatMessage"] p,
+[data-testid="stChatMessage"] li,
+[data-testid="stChatMessage"] td,
+[data-testid="stChatMessage"] th { color: #1a2e1a !important; }
+
+/* tabelas no chat */
+[data-testid="stChatMessage"] table {
+    border-collapse: collapse;
+    width: 100%;
+    background: #ffffff;
+}
+[data-testid="stChatMessage"] th {
+    background: #2e7d32 !important;
+    color: white !important;
+    padding: 6px 10px;
+}
+[data-testid="stChatMessage"] td { padding: 5px 10px; border-bottom: 1px solid #e0f0e0; }
+[data-testid="stChatMessage"] tr:nth-child(even) td { background: #f1f8f1; }
 
 /* input de chat */
 [data-testid="stChatInput"] textarea {
-    background: #122612 !important;
-    color: #e8f5e9 !important;
+    background: #f9fdf9 !important;
+    color: #1a2e1a !important;
     border: 1.5px solid #2e7d32 !important;
     border-radius: 10px !important;
 }
@@ -91,24 +119,32 @@ a.download-btn:hover { background: linear-gradient(135deg, #1976d2, #1565c0); }
 a.download-btn.green { background: linear-gradient(135deg, #2e7d32, #1b5e20); }
 
 /* título principal */
-h1 { color: #66bb6a !important; font-weight: 900; }
-h2, h3 { color: #a5d6a7 !important; }
+h1 { color: #2e7d32 !important; font-weight: 900; }
+h2, h3 { color: #388e3c !important; }
 
 /* file uploader */
 [data-testid="stFileUploader"] {
-    background: #122612;
+    background: #f9fdf9;
     border: 1.5px dashed #2e7d32;
     border-radius: 10px;
 }
 
 /* divider */
-hr { border-color: #1e401e !important; }
+hr { border-color: #c8e6c9 !important; }
 
 /* expander */
-details { background: #122612; border-radius: 8px; border: 1px solid #1e401e; }
+details { background: #f9fdf9; border-radius: 8px; border: 1px solid #c8e6c9; }
 
-/* avatar do assistente */
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatar"]) {}
+/* disclaimer box */
+.disclaimer-box {
+    background: #fff8e1;
+    border: 1.5px solid #f9a825;
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #5d4037 !important;
+    font-size: 0.88rem;
+    margin-top: 12px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -580,11 +616,27 @@ def main():
             st.session_state.messages = []
             st.rerun()
 
+    DISCLAIMER = "⚠️ **Esta recomendação não substitui o laudo de Engenheiro Agrônomo habilitado (CREA).**"
+
+    def exibe_msg_assistente(content: str, show_disclaimer: bool = True):
+        # Remove disclaimer inline que o modelo possa ter incluído
+        texto = re.sub(r'⚠️\s*\*?Esta recomendação não substitui.*?CREA\.\*?\n?', '', content, flags=re.IGNORECASE).strip()
+        st.markdown(texto)
+        if show_disclaimer:
+            st.markdown(
+                f'<div class="disclaimer-box">{DISCLAIMER}</div>',
+                unsafe_allow_html=True
+            )
+
     # Exibe histórico
-    for msg in st.session_state.messages:
+    for i, msg in enumerate(st.session_state.messages):
         avatar = "🌱" if msg["role"] == "assistant" else "👤"
         with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+            if msg["role"] == "assistant":
+                # Mensagem de boas-vindas (índice 0) mostra disclaimer simples
+                exibe_msg_assistente(msg["content"], show_disclaimer=(i > 0))
+            else:
+                st.markdown(msg["content"])
 
     # Botões de download da última resposta do assistente
     assistant_msgs = [m for m in st.session_state.messages if m["role"] == "assistant"]
@@ -638,7 +690,7 @@ def main():
 
         # Mostra resposta
         with st.chat_message("assistant", avatar="🌱"):
-            st.markdown(resposta)
+            exibe_msg_assistente(resposta)
 
         st.session_state.messages.append({"role": "assistant", "content": resposta})
         st.rerun()
