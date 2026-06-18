@@ -214,7 +214,14 @@ Exemplo de tabela de resultado:
 | pH H₂O | 5,1 | 5,5 – 6,5 | ⚠️ Baixo |
 
 ## GERAÇÃO DE ARQUIVOS
-Quando o usuário pedir PDF, relatório, planilha ou Excel, avise que pode usar os botões de download abaixo do chat para baixar a última resposta como PDF ou exportar os dados como Excel.
+Quando o usuário pedir PDF, Word, PowerPoint, relatório ou planilha, NÃO diga "clique no botão" nem redirecione. Em vez disso, gere IMEDIATAMENTE o conteúdo COMPLETO e DETALHADO do documento diretamente na sua resposta usando markdown rico:
+- Use ## para seções principais
+- Use ### para subseções
+- Use tabelas markdown para todos os dados comparativos
+- Use listas com bullets para recomendações
+- Inclua TODOS os cálculos, valores e recomendações
+
+O sistema converterá automaticamente sua resposta em PDF, Word, Excel e PowerPoint via os botões de download. Sua tarefa é gerar conteúdo RICO e COMPLETO — não instruções sobre como usar o sistema.
 
 ## AVISO FINAL — SEMPRE INCLUIR
 ⚠️ *Esta recomendação não substitui o laudo de Engenheiro Agrônomo habilitado (CREA).*
@@ -797,7 +804,7 @@ def call_claude(messages: list, image_b64: str = None, image_mime: str = None) -
     with st.spinner("🌱 Analisando..."):
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=2048,
+            max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=api_messages,
         )
