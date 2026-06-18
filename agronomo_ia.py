@@ -20,6 +20,19 @@ from reportlab.platypus import (
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, numbers
 
+# ── Word ──────────────────────────────────────────────────────────────────────
+from docx import Document
+from docx.shared import Pt, RGBColor, Cm, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+# ── PowerPoint ────────────────────────────────────────────────────────────────
+from pptx import Presentation
+from pptx.util import Inches as PInches, Pt as PPt, Emu
+from pptx.dml.color import RGBColor as PRGBColor
+from pptx.enum.text import PP_ALIGN
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
@@ -499,11 +512,252 @@ def response_to_excel(markdown_text: str, title: str = "Agrônomo IA") -> bytes:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# GERAÇÃO DE WORD (.docx)
+# ══════════════════════════════════════════════════════════════════════════════
+def markdown_to_docx(markdown_text: str, title: str = "Relatório — Agrônomo IA") -> bytes:
+    doc = Document()
+
+    VERDE = RGBColor(0x2E, 0x7D, 0x32)
+    VERDE_ESC = RGBColor(0x1B, 0x5E, 0x20)
+    CINZA = RGBColor(0x75, 0x75, 0x75)
+
+    # Margens
+    for section in doc.sections:
+        section.top_margin    = Cm(2)
+        section.bottom_margin = Cm(2)
+        section.left_margin   = Cm(2.5)
+        section.right_margin  = Cm(2.5)
+
+    # Cabeçalho
+    hdr = doc.add_paragraph()
+    hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = hdr.add_run("🌱 GUARA AGRO — AGRÔNOMO IA")
+    run.font.bold = True
+    run.font.size = Pt(18)
+    run.font.color.rgb = VERDE_ESC
+
+    sub = doc.add_paragraph()
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r2 = sub.add_run(f"{title}  ·  {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    r2.font.size = Pt(10)
+    r2.font.color.rgb = CINZA
+    r2.font.italic = True
+
+    doc.add_paragraph()
+
+    # Processa markdown linha a linha
+    lines = markdown_text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # Headings
+        if line.startswith("### "):
+            p = doc.add_heading(line[4:].strip(), level=3)
+            p.runs[0].font.color.rgb = VERDE
+        elif line.startswith("## "):
+            p = doc.add_heading(line[3:].strip(), level=2)
+            p.runs[0].font.color.rgb = VERDE_ESC
+        elif line.startswith("# "):
+            p = doc.add_heading(line[2:].strip(), level=1)
+            p.runs[0].font.color.rgb = VERDE_ESC
+
+        # Tabela markdown
+        elif line.strip().startswith("|") and i + 1 < len(lines) and "---" in lines[i + 1]:
+            headers = [c.strip() for c in line.split("|") if c.strip()]
+            i += 2  # pula linha de separador
+            rows_data = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = [c.strip() for c in lines[i].split("|") if c.strip()]
+                if row:
+                    rows_data.append(row)
+                i += 1
+
+            n_cols = max(len(headers), max((len(r) for r in rows_data), default=0))
+            table = doc.add_table(rows=1 + len(rows_data), cols=n_cols)
+            table.style = "Table Grid"
+
+            # Header row
+            for j, h in enumerate(headers):
+                cell = table.rows[0].cells[j]
+                cell.text = h
+                run = cell.paragraphs[0].runs[0]
+                run.bold = True
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                tc = cell._tc
+                tcPr = tc.get_or_add_tcPr()
+                shd = OxmlElement("w:shd")
+                shd.set(qn("w:fill"), "2E7D32")
+                shd.set(qn("w:color"), "auto")
+                shd.set(qn("w:val"), "clear")
+                tcPr.append(shd)
+
+            # Data rows
+            for ri, row_data in enumerate(rows_data):
+                for ci, val in enumerate(row_data):
+                    if ci < n_cols:
+                        table.rows[ri + 1].cells[ci].text = val
+
+            doc.add_paragraph()
+            continue  # já avançou i dentro do loop
+
+        # Bullet
+        elif line.startswith("- ") or line.startswith("* "):
+            txt = line[2:].strip()
+            txt = re.sub(r'\*\*(.+?)\*\*', r'\1', txt)
+            p = doc.add_paragraph(txt, style="List Bullet")
+
+        # Linha vazia
+        elif line.strip() == "":
+            doc.add_paragraph()
+
+        # Parágrafo normal
+        else:
+            txt = line.strip()
+            if not txt:
+                i += 1
+                continue
+            p = doc.add_paragraph()
+            # bold inline
+            parts = re.split(r'\*\*(.+?)\*\*', txt)
+            for pi, part in enumerate(parts):
+                r = p.add_run(part)
+                r.bold = (pi % 2 == 1)
+
+        i += 1
+
+    # Rodapé
+    doc.add_paragraph()
+    footer_p = doc.add_paragraph()
+    footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    fr = footer_p.add_run("⚠️ Esta recomendação não substitui o laudo de Engenheiro Agrônomo habilitado (CREA).  ·  Guara Agro")
+    fr.font.size = Pt(8)
+    fr.font.italic = True
+    fr.font.color.rgb = CINZA
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GERAÇÃO DE POWERPOINT (.pptx)
+# ══════════════════════════════════════════════════════════════════════════════
+def markdown_to_pptx(markdown_text: str, title: str = "Análise Agrônomo IA") -> bytes:
+    prs = Presentation()
+    prs.slide_width  = PInches(13.33)
+    prs.slide_height = PInches(7.5)
+
+    VERDE     = PRGBColor(0x2E, 0x7D, 0x32)
+    VERDE_ESC = PRGBColor(0x1B, 0x5E, 0x20)
+    BRANCO    = PRGBColor(0xFF, 0xFF, 0xFF)
+    CINZA_ESC = PRGBColor(0x33, 0x33, 0x33)
+
+    blank_layout = prs.slide_layouts[6]  # totalmente em branco
+
+    def add_rect(slide, x, y, w, h, fill_color):
+        shape = slide.shapes.add_shape(1, PInches(x), PInches(y), PInches(w), PInches(h))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = fill_color
+        shape.line.fill.background()
+        return shape
+
+    def add_textbox(slide, text, x, y, w, h, size=18, bold=False, color=None, align=PP_ALIGN.LEFT, italic=False):
+        txb = slide.shapes.add_textbox(PInches(x), PInches(y), PInches(w), PInches(h))
+        tf  = txb.text_frame
+        tf.word_wrap = True
+        p   = tf.paragraphs[0]
+        p.alignment = align
+        run = p.add_run()
+        run.text = text
+        run.font.size  = PPt(size)
+        run.font.bold  = bold
+        run.font.italic = italic
+        if color:
+            run.font.color.rgb = color
+        return txb
+
+    # ── Slide 1: Capa ────────────────────────────────────────────────────────
+    slide1 = prs.slides.add_slide(blank_layout)
+    add_rect(slide1, 0, 0, 13.33, 7.5, VERDE_ESC)
+    add_rect(slide1, 0, 5.8, 13.33, 1.7, PRGBColor(0x14, 0x46, 0x14))
+    add_textbox(slide1, "🌱 GUARA AGRO", 0.5, 1.5, 12.33, 1.2, size=32, bold=True, color=BRANCO, align=PP_ALIGN.CENTER)
+    add_textbox(slide1, "AGRÔNOMO IA", 0.5, 2.5, 12.33, 1.0, size=44, bold=True, color=PRGBColor(0xA5, 0xD6, 0xA7), align=PP_ALIGN.CENTER)
+    add_textbox(slide1, title, 0.5, 3.6, 12.33, 0.7, size=20, color=BRANCO, align=PP_ALIGN.CENTER)
+    add_textbox(slide1, datetime.now().strftime("%d/%m/%Y"), 0.5, 6.1, 12.33, 0.6, size=14, color=PRGBColor(0xA5, 0xD6, 0xA7), align=PP_ALIGN.CENTER)
+
+    # ── Processa conteúdo em slides ──────────────────────────────────────────
+    lines = markdown_text.split("\n")
+    slides_data = []  # lista de (titulo, [bullets])
+    current_title = title
+    current_bullets = []
+
+    for line in lines:
+        if line.startswith("## ") or line.startswith("# "):
+            if current_bullets:
+                slides_data.append((current_title, current_bullets))
+                current_bullets = []
+            current_title = re.sub(r'[#*]+', '', line).strip()
+        elif line.startswith("### "):
+            current_bullets.append(("sub", re.sub(r'#+', '', line).strip()))
+        elif line.startswith("- ") or line.startswith("* "):
+            txt = re.sub(r'\*\*(.+?)\*\*', r'\1', line[2:].strip())
+            current_bullets.append(("bullet", txt))
+        elif line.strip() and not line.startswith("|") and "---" not in line:
+            txt = re.sub(r'\*\*(.+?)\*\*', r'\1', line.strip())
+            current_bullets.append(("text", txt))
+
+    if current_bullets:
+        slides_data.append((current_title, current_bullets))
+
+    # ── Gera slides de conteúdo ──────────────────────────────────────────────
+    for slide_title, bullets in slides_data:
+        slide = prs.slides.add_slide(blank_layout)
+
+        # Barra superior verde
+        add_rect(slide, 0, 0, 13.33, 1.2, VERDE)
+        add_textbox(slide, slide_title, 0.3, 0.1, 12.73, 1.0, size=24, bold=True, color=BRANCO)
+
+        # Barra inferior
+        add_rect(slide, 0, 7.1, 13.33, 0.4, VERDE_ESC)
+        add_textbox(slide, "Guara Agro · Agrônomo IA  |  ⚠️ Não substitui laudo de Engenheiro Agrônomo (CREA)", 0.2, 7.1, 12.9, 0.38, size=9, color=BRANCO, italic=True)
+
+        # Conteúdo
+        y = 1.35
+        max_y = 6.9
+        for kind, txt in bullets:
+            if y >= max_y:
+                break
+            if kind == "sub":
+                add_textbox(slide, txt, 0.4, y, 12.5, 0.45, size=14, bold=True, color=VERDE)
+                y += 0.5
+            elif kind == "bullet":
+                add_textbox(slide, f"• {txt}", 0.6, y, 12.1, 0.4, size=13, color=CINZA_ESC)
+                y += 0.42
+            else:
+                add_textbox(slide, txt, 0.4, y, 12.5, 0.4, size=12, color=CINZA_ESC)
+                y += 0.45
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # HELPER: download link HTML
 # ══════════════════════════════════════════════════════════════════════════════
 def make_download_link(data: bytes, filename: str, label: str, css_class: str = "") -> str:
     b64 = base64.b64encode(data).decode()
-    mime = "application/pdf" if filename.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ext = filename.rsplit(".", 1)[-1].lower()
+    mimes = {
+        "pdf":  "application/pdf",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }
+    mime = mimes.get(ext, "application/octet-stream")
     return (
         f'<a href="data:{mime};base64,{b64}" download="{filename}" '
         f'class="download-btn {css_class}">{label}</a>'
@@ -646,12 +900,16 @@ def main():
 
         pdf_bytes   = markdown_to_pdf(last_ai, "Análise Agrônomo IA")
         excel_bytes = response_to_excel(last_ai, "Análise Agrônomo IA")
+        docx_bytes  = markdown_to_docx(last_ai, "Análise Agrônomo IA")
+        pptx_bytes  = markdown_to_pptx(last_ai, "Análise Agrônomo IA")
 
-        link_pdf   = make_download_link(pdf_bytes,   f"agronomo_ia_{nome_data}.pdf",  "📥 Baixar PDF",   "")
-        link_excel = make_download_link(excel_bytes, f"agronomo_ia_{nome_data}.xlsx", "📊 Baixar Excel", "green")
+        link_pdf   = make_download_link(pdf_bytes,   f"agronomo_ia_{nome_data}.pdf",  "📥 PDF",   "")
+        link_excel = make_download_link(excel_bytes, f"agronomo_ia_{nome_data}.xlsx", "📊 Excel", "green")
+        link_docx  = make_download_link(docx_bytes,  f"agronomo_ia_{nome_data}.docx", "📝 Word",  "")
+        link_pptx  = make_download_link(pptx_bytes,  f"agronomo_ia_{nome_data}.pptx", "📑 PPT",   "green")
 
         st.markdown(
-            f'<div style="margin-bottom:8px">{link_pdf} {link_excel}</div>',
+            f'<div style="margin-bottom:8px">{link_pdf} {link_excel} {link_docx} {link_pptx}</div>',
             unsafe_allow_html=True
         )
 
